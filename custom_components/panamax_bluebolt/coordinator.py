@@ -1,6 +1,7 @@
 """DataUpdateCoordinator for the Panamax integration."""
 from __future__ import annotations
 import logging
+import sys
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
@@ -16,6 +17,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     PanamaxState,
+    parse_reboot_delays
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,7 +50,8 @@ class PanamaxCoordinator(DataUpdateCoordinator[PanamaxState]):
             voltage = await self._client.get_voltage()
             current = await self._client.get_current()
             faults = await self._client.get_fault_status()
-            delays = await self._client.get_reboot_delays()
+            config = await self._client.get_config()
+            delays = parse_reboot_delays(config)
         except PanamaxConnectionError as exc:
             raise UpdateFailed(str(exc)) from exc
 

@@ -1,0 +1,13 @@
+{
+  "domain": "panamax_bluebolt",
+  "name": "Panamax BlueBOLT",
+  "codeowners": ["@bhamiltoncx"],
+  "config_flow": true,
+  "dhcp": [{ "macaddress": "1065A3*" }],
+  "documentation": "https://github.com/bhamiltoncx/ha-panamax-bluebolt",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/bhamiltoncx/ha-panamax-bluebolt/issues",
+  "loggers": ["custom_components.panamax_bluebolt"],
+  "requirements": [],
+  "version": "1.0.0"
+}

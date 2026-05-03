@@ -1,6 +1,6 @@
 """Unit tests for sensor value computation."""
 from __future__ import annotations
-from custom_components.bluebolt_panamax.const import PanamaxState
+from custom_components.panamax_bluebolt.const import PanamaxState
 
 
 def _make_state(voltage: int = 120, current: int = 10) -> PanamaxState:

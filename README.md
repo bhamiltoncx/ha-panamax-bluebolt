@@ -1,12 +1,12 @@
-# BlueBolt / Panamax — Home Assistant Integration
+# Panamax BlueBOLT — Home Assistant Integration
 
-Local-polling integration for Panamax/BlueBolt PDUs (power distribution units).
+Local-polling integration for Panamax BlueBOLT PDUs (power distribution units).
 Communicates over Telnet (port 23) with no authentication required.
 
 ## Confirmed Compatible Devices
 
-- Panamax M4320-PRO (8 outlets)
-- Panamax M4315-PRO (8 outlets, same firmware protocol)
+- Panamax BlueBOLT M4320-PRO (8 outlets)
+- Panamax BlueBOLT M4315-PRO (8 outlets, same firmware protocol)
 
 ## Features
 
@@ -28,7 +28,7 @@ Communicates over Telnet (port 23) with no authentication required.
 
 ## Manual Installation
 
-Copy `custom_components/bluebolt_panamax/` into your HA `config/custom_components/` directory and restart.
+Copy `custom_components/panamax_bluebolt/` into your HA `config/custom_components/` directory and restart.
 
 ## Configuration
 
@@ -45,4 +45,4 @@ Copy `custom_components/bluebolt_panamax/` into your HA `config/custom_component
 
 ## Removal
 
-Go to **Settings → Integrations**, find "BlueBolt / Panamax", and click **Delete**.
+Go to **Settings → Integrations**, find "Panamax BlueBOLT", and click **Delete**.

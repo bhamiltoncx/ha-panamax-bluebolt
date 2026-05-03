@@ -1,4 +1,4 @@
-"""Config flow for the BlueBolt / Panamax integration."""
+"""Config flow for the Panamax BlueBOLT integration."""
 from __future__ import annotations
 from typing import Any
 

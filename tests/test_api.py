@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-_ROOT = Path(__file__).parent.parent / "custom_components" / "bluebolt_panamax"
+_ROOT = Path(__file__).parent.parent / "custom_components" / "panamax_bluebolt"
 
 
 def _load(name: str, path: Path) -> object:
@@ -22,8 +22,8 @@ def _load(name: str, path: Path) -> object:
     return mod
 
 
-_load("custom_components.bluebolt_panamax.const", _ROOT / "const.py")
-_api = _load("custom_components.bluebolt_panamax.api", _ROOT / "api.py")
+_load("custom_components.panamax_bluebolt.const", _ROOT / "const.py")
+_api = _load("custom_components.panamax_bluebolt.api", _ROOT / "api.py")
 
 HOST = os.environ.get("BLUEBOLT_HOST", "")
 PORT = int(os.environ.get("BLUEBOLT_PORT", "23"))
@@ -76,8 +76,8 @@ async def test_get_fault_status(client: object) -> None:
     assert all(isinstance(v, bool) for v in result.values())
 
 
-async def test_get_reboot_delays(client: object) -> None:
-    result = await client.get_reboot_delays()  # type: ignore[union-attr]
+async def test_get_config(client: object) -> None:
+    result = await client.get_config()
     assert isinstance(result, dict)
-    assert len(result) == 8
-    assert all(isinstance(v, int) for v in result.values())
+    assert all(isinstance(v, str) for v in result.keys())
+    assert all(isinstance(v, str) for v in result.values())

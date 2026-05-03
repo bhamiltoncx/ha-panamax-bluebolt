@@ -1,9 +1,9 @@
-"""Constants and parse helpers for the BlueBolt / Panamax integration."""
+"""Constants and parse helpers for the Panamax BlueBOLT integration."""
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-DOMAIN: Final = "bluebolt_panamax"
+DOMAIN: Final = "panamax_bluebolt"
 
 CONF_HOST: Final = "host"
 CONF_PORT: Final = "port"
@@ -87,19 +87,25 @@ def parse_fault_status(raw: str) -> dict[str, bool]:
     return result
 
 
-def parse_reboot_delays(raw: str) -> dict[int, int]:
-    """Parse ?LIST_CONFIG → per-outlet off-duration in seconds.
+def parse_list_config(raw: str) -> dict[str, str]:
+    """Parse ?LIST_CONFIG → key-value dictionary."""
+    result: dict[str, str] = {}
+    for line in raw.splitlines():
+        line = line.strip().lstrip("$")
+        left, right = line.split("=", 1)
+        result[left] = right
+    return result
 
-    Line format: '$DELAY FOR OUTLET{n} = {on_delay}, {off_delay}'
+
+def parse_reboot_delays(config: dict[str, str]) -> dict[int, int]:
+    """Parse config dict → per-outlet off-duration in seconds.
+
+    Config format: 'DELAY FOR OUTLET{n} -> {on_delay}, {off_delay}'
     Uses off_delay (second value) as the cycle delay.
     """
     result: dict[int, int] = {}
-    for line in raw.splitlines():
-        line = line.strip().lstrip("$")
-        if not line.upper().startswith("DELAY FOR OUTLET"):
-            continue
+    for left, right in config.items():
         try:
-            left, right = line.split("=", 1)
             n = int(left.strip()[len("DELAY FOR OUTLET"):])
             delays = right.strip().split(",")
             result[n] = int(delays[-1].strip())

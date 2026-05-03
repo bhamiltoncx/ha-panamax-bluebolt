@@ -1,6 +1,6 @@
 """Unit tests for outlet on/off state mapping in switch.py."""
 from __future__ import annotations
-from custom_components.bluebolt_panamax.const import PanamaxState
+from custom_components.panamax_bluebolt.const import PanamaxState
 
 
 def _make_state(outlets: dict[int, bool]) -> PanamaxState:

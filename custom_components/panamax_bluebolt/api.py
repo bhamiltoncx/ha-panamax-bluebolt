@@ -1,4 +1,4 @@
-"""Stateless async telnet client for Panamax/BlueBolt PDUs."""
+"""Stateless async telnet client for Panamax BlueBOLT PDUs."""
 from __future__ import annotations
 import asyncio
 import logging
@@ -6,8 +6,8 @@ from .const import (
     TELNET_READ_TIMEOUT,
     parse_fault_status,
     parse_int_value,
+    parse_list_config,
     parse_outlet_status,
-    parse_reboot_delays,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,41 +17,35 @@ class PanamaxConnectionError(Exception):
     """Raised when unable to connect to or communicate with the device."""
 
 
-async def _send_command(host: str, port: int, command: str) -> str:
-    """Open a connection, send one command, read response until timeout, close."""
+async def _send_command(host: str, port: int, command: str, lines_expected: int = 1) -> str:
+    """Open a connection, send one command, read response, close."""
+    result_lines = []
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port),
-            timeout=TELNET_READ_TIMEOUT,
-        )
-    except (OSError, asyncio.TimeoutError) as exc:
+        async with asyncio.timeout(TELNET_READ_TIMEOUT):
+            reader, writer = await asyncio.open_connection(host, port)
+            result_lines = []
+            try:
+                writer.write((command + "\r\n").encode())
+                await writer.drain()
+                line_num = 0
+                while lines_expected < 0 or line_num < lines_expected:
+                    data = await reader.readuntil(b'\r\n')
+                    result_lines.append(data.decode(errors="replace"))
+                    line_num += 1
+            finally:
+                writer.close()
+                await writer.wait_closed()
+    except TimeoutError as exc:
+        if lines_expected >= 0:
+            raise PanamaxConnectionError(
+                f"Cannot connect to {host}:{port}: {exc}"
+            ) from exc
+    except OSError as exc:
         raise PanamaxConnectionError(
             f"Cannot connect to {host}:{port}: {exc}"
         ) from exc
+    return ''.join(result_lines)
 
-    try:
-        writer.write((command + "\r\n").encode())
-        await writer.drain()
-
-        chunks: list[bytes] = []
-        try:
-            while True:
-                chunk = await asyncio.wait_for(
-                    reader.read(4096), timeout=TELNET_READ_TIMEOUT
-                )
-                if not chunk:
-                    break
-                chunks.append(chunk)
-        except asyncio.TimeoutError:
-            pass
-
-        return b"".join(chunks).decode(errors="replace")
-    finally:
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 class PanamaxClient:
@@ -63,11 +57,11 @@ class PanamaxClient:
 
     async def get_id(self) -> str:
         """Return the raw ?ID response (model and firmware lines)."""
-        return await _send_command(self._host, self._port, "?ID")
+        return await _send_command(self._host, self._port, "?ID", lines_expected=3)
 
     async def get_outlet_status(self) -> dict[int, bool]:
         """Return {outlet_number: is_on} for all 8 outlets."""
-        raw = await _send_command(self._host, self._port, "?OUTLETSTAT")
+        raw = await _send_command(self._host, self._port, "?OUTLETSTAT", lines_expected=8)
         return parse_outlet_status(raw)
 
     async def get_voltage(self) -> int:
@@ -85,10 +79,10 @@ class PanamaxClient:
         raw = await _send_command(self._host, self._port, "?FAULTSTAT")
         return parse_fault_status(raw)
 
-    async def get_reboot_delays(self) -> dict[int, int]:
-        """Return per-outlet off-duration in seconds (from ?LIST_CONFIG)."""
-        raw = await _send_command(self._host, self._port, "?LIST_CONFIG")
-        return parse_reboot_delays(raw)
+    async def get_config(self) -> dict[str, str]:
+        """Return configuration dictionary (from ?LIST_CONFIG)."""
+        raw = await _send_command(self._host, self._port, "?LIST_CONFIG", lines_expected=-1)
+        return parse_list_config(raw)
 
     async def switch_outlet(self, outlet: int, on: bool) -> None:
         """Turn a single outlet on or off."""

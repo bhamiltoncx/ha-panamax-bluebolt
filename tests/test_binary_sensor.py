@@ -1,6 +1,6 @@
 """Unit tests for fault indicator inversion logic."""
 from __future__ import annotations
-from custom_components.bluebolt_panamax.const import PanamaxState
+from custom_components.panamax_bluebolt.const import PanamaxState
 
 
 def _make_state(**fault_overrides: bool) -> PanamaxState:

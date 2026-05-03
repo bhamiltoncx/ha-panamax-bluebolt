@@ -4,7 +4,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-_ROOT = Path(__file__).parent.parent / "custom_components" / "bluebolt_panamax"
+_ROOT = Path(__file__).parent.parent / "custom_components" / "panamax_bluebolt"
 
 
 def _load(name: str, path: Path) -> object:
@@ -16,7 +16,7 @@ def _load(name: str, path: Path) -> object:
     return mod
 
 
-_const = _load("custom_components.bluebolt_panamax.const", _ROOT / "const.py")
+_const = _load("custom_components.panamax_bluebolt.const", _ROOT / "const.py")
 
 OUTLETSTAT_RAW = (
     "$OUTLET1 = ON\r\n$OUTLET2 = ON\r\n$OUTLET3 = OFF\r\n$OUTLET4 = ON\r\n"
@@ -102,17 +102,21 @@ class TestParseFaultStatus:
 
 class TestParseRebootDelays:
     def test_all_eight_outlets(self) -> None:
-        result = _const.parse_reboot_delays(LIST_CONFIG_RAW)  # type: ignore[attr-defined]
+        config = _const.parse_list_config(LIST_CONFIG_RAW)
+        result = _const.parse_reboot_delays(config)
         assert len(result) == 8
 
     def test_outlet1_off_delay(self) -> None:
-        result = _const.parse_reboot_delays(LIST_CONFIG_RAW)  # type: ignore[attr-defined]
+        config = _const.parse_list_config(LIST_CONFIG_RAW)
+        result = _const.parse_reboot_delays(config)
         assert result[1] == 15
 
     def test_outlet8_off_delay(self) -> None:
-        result = _const.parse_reboot_delays(LIST_CONFIG_RAW)  # type: ignore[attr-defined]
+        config = _const.parse_list_config(LIST_CONFIG_RAW)
+        result = _const.parse_reboot_delays(config)
         assert result[8] == 1
 
     def test_skips_trigger_lines(self) -> None:
-        result = _const.parse_reboot_delays(LIST_CONFIG_RAW)  # type: ignore[attr-defined]
+        config = _const.parse_list_config(LIST_CONFIG_RAW)
+        result = _const.parse_reboot_delays(config)
         assert all(isinstance(v, int) for v in result.values())

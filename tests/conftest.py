@@ -1,4 +1,4 @@
-"""pytest configuration for the BlueBolt / Panamax test suite."""
+"""pytest configuration for the Panamax BlueBOLT test suite."""
 from __future__ import annotations
 from pathlib import Path
 import pytest

@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "BlueBolt / Panamax",
-        "description": "Enter the IP address or hostname of your Panamax PDU.",
+        "title": "Panamax BlueBOLT PDU",
+        "description": "Enter the IP address or hostname of your Panamax BlueBOLT PDU.",
         "data": {
           "host": "Host",
           "port": "Port",
