@@ -1,0 +1,112 @@
+rules:
+  # Bronze
+  action_setup:
+    status: exempt
+    comment: No custom actions; outlet control uses standard SwitchEntity calls.
+  appropriate_polling: done
+  brands: done
+  common_modules: done
+  config_flow: done
+  config_flow_test_coverage:
+    status: todo
+    comment: Config flow tests require pytest-homeassistant-custom-component; not yet set up.
+  dependency_transparency: done
+  docs_actions:
+    status: exempt
+    comment: No custom actions registered.
+  docs_high_level_description: done
+  docs_installation_instructions: done
+  docs_removal_instructions: done
+  entity_event_setup:
+    status: exempt
+    comment: Local polling only; no push events.
+  entity_unique_id: done
+  has_entity_name: done
+  runtime_data: done
+  test_before_configure: done
+  test_before_setup: done
+  unique_config_entry: done
+
+  # Silver
+  action_exceptions:
+    status: exempt
+    comment: No custom actions registered.
+  config_entry_unloading: done
+  docs_configuration_parameters: done
+  docs_installation_parameters: done
+  entity_unavailable: done
+  integration_owner: done
+  log_when_unavailable:
+    status: todo
+    comment: Coordinator does not yet log when device transitions to unavailable.
+  parallel_updates:
+    status: todo
+    comment: PARALLEL_UPDATES not yet set on platforms.
+  reauthentication_flow:
+    status: exempt
+    comment: No authentication; plain telnet with no credentials.
+  test_coverage:
+    status: todo
+    comment: Parse helpers and entity data mapping tested; config flow and coordinator have no coverage.
+
+  # Gold
+  devices: done
+  diagnostics:
+    status: todo
+    comment: No diagnostics platform implemented.
+  discovery: done
+  discovery_update_info:
+    status: todo
+    comment: DHCP discovery does not yet update host when IP changes.
+  docs_data_update:
+    status: todo
+    comment: README does not describe polling mechanism or update frequency.
+  docs_examples:
+    status: todo
+    comment: No automation examples in docs.
+  docs_known_limitations:
+    status: todo
+    comment: No known limitations section (per-outlet power not available, outlet names not configurable).
+  docs_supported_devices: done
+  docs_supported_functions:
+    status: todo
+    comment: README does not enumerate all entity types per model.
+  docs_troubleshooting:
+    status: todo
+    comment: No troubleshooting section.
+  docs_use_cases:
+    status: todo
+    comment: No use-case examples.
+  dynamic_devices:
+    status: exempt
+    comment: PDU has a fixed number of outlets; no dynamic device addition.
+  entity_category: done
+  entity_device_class: done
+  entity_disabled_by_default:
+    status: todo
+    comment: Consider disabling cycle buttons by default to avoid accidental presses.
+  entity_translations: done
+  exception_translations:
+    status: todo
+    comment: PanamaxConnectionError messages are not translatable.
+  icon_translations:
+    status: todo
+    comment: No icons.json defined.
+  reconfiguration_flow:
+    status: todo
+    comment: No reconfigure flow to update host/port/scan_interval post-setup.
+  repair_issues:
+    status: todo
+    comment: No repair issues raised on repeated connection failure.
+  stale_devices:
+    status: exempt
+    comment: Fixed outlet count; no dynamic device removal.
+
+  # Platinum
+  async_dependency: done
+  inject_websession:
+    status: exempt
+    comment: Uses asyncio.open_connection directly; no HTTP websession needed.
+  strict_typing:
+    status: todo
+    comment: All code is annotated but mypy is not configured in CI.

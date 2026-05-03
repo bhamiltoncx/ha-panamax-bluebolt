@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "BlueBolt / Panamax",
+        "description": "Enter the IP address or hostname of your Panamax PDU.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to device. Check host and port."
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "cannot_connect": "Cannot connect to device at discovered address."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "power": { "name": "Power" },
+      "breaker": { "name": "Breaker" },
+      "wire_fault": { "name": "Wire Fault" },
+      "temperature": { "name": "Temperature" },
+      "avm": { "name": "AVM" }
+    },
+    "sensor": {
+      "voltage": { "name": "Voltage" },
+      "current": { "name": "Current" },
+      "apparent_power": { "name": "Apparent Power" }
+    },
+    "button": {
+      "all_on": { "name": "All Outlets On" },
+      "all_off": { "name": "All Outlets Off" },
+      "cycle_outlet": { "name": "Cycle Outlet {outlet}" }
+    }
+  }
+}
