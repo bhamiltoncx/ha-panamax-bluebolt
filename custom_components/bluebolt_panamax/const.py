@@ -1,0 +1,108 @@
+"""Constants and parse helpers for the BlueBolt / Panamax integration."""
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Final
+
+DOMAIN: Final = "bluebolt_panamax"
+
+CONF_HOST: Final = "host"
+CONF_PORT: Final = "port"
+CONF_SCAN_INTERVAL: Final = "scan_interval"
+
+DEFAULT_PORT: Final = 23
+DEFAULT_SCAN_INTERVAL: Final = 60
+MIN_SCAN_INTERVAL: Final = 10
+MAX_SCAN_INTERVAL: Final = 3600
+
+TELNET_READ_TIMEOUT: Final = 2.0
+NUM_OUTLETS: Final = 8
+
+
+@dataclass
+class PanamaxState:
+    outlets: dict[int, bool]
+    voltage: int
+    current: int
+    power_ok: bool
+    breaker_ok: bool
+    wire_fault_ok: bool
+    temperature_ok: bool
+    avm_ok: bool
+    reboot_delays: dict[int, int]
+
+
+def parse_outlet_status(raw: str) -> dict[int, bool]:
+    """Parse ?OUTLETSTAT response: '$OUTLET1 = ON\r\n...' → {1: True, ...}"""
+    result: dict[int, bool] = {}
+    for line in raw.splitlines():
+        line = line.strip().lstrip("$")
+        if not line.upper().startswith("OUTLET"):
+            continue
+        try:
+            key, val = line.split("=", 1)
+            n = int(key.strip()[len("OUTLET"):])
+            result[n] = val.strip().upper() == "ON"
+        except (ValueError, IndexError):
+            continue
+    return result
+
+
+def parse_int_value(raw: str, key: str) -> int:
+    """Parse '$KEY = 124\r\n' → 124. Returns 0 if key not found."""
+    for line in raw.splitlines():
+        line = line.strip().lstrip("$")
+        if line.upper().startswith(key.upper()):
+            try:
+                return int(line.split("=", 1)[1].strip())
+            except (ValueError, IndexError):
+                pass
+    return 0
+
+
+def parse_fault_status(raw: str) -> dict[str, bool]:
+    """Parse ?FAULTSTAT response → {field: is_ok}. Defaults True if absent."""
+    result: dict[str, bool] = {
+        "power_ok": True,
+        "breaker_ok": True,
+        "wire_fault_ok": True,
+        "temperature_ok": True,
+        "avm_ok": True,
+    }
+    key_map = {
+        "PWR": "power_ok",
+        "BREAKER": "breaker_ok",
+        "WIRE FAULT": "wire_fault_ok",
+        "TEMPERATURE": "temperature_ok",
+        "AVM": "avm_ok",
+    }
+    for line in raw.splitlines():
+        line = line.strip().lstrip("$")
+        for proto_key, field in key_map.items():
+            if line.upper().startswith(proto_key):
+                try:
+                    val = line.split("=", 1)[1].strip().upper()
+                    result[field] = val == "OK"
+                except IndexError:
+                    pass
+    return result
+
+
+def parse_reboot_delays(raw: str) -> dict[int, int]:
+    """Parse ?LIST_CONFIG → per-outlet off-duration in seconds.
+
+    Line format: '$DELAY FOR OUTLET{n} = {on_delay}, {off_delay}'
+    Uses off_delay (second value) as the cycle delay.
+    """
+    result: dict[int, int] = {}
+    for line in raw.splitlines():
+        line = line.strip().lstrip("$")
+        if not line.upper().startswith("DELAY FOR OUTLET"):
+            continue
+        try:
+            left, right = line.split("=", 1)
+            n = int(left.strip()[len("DELAY FOR OUTLET"):])
+            delays = right.strip().split(",")
+            result[n] = int(delays[-1].strip())
+        except (ValueError, IndexError):
+            continue
+    return result
