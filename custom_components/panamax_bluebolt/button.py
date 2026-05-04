@@ -40,8 +40,7 @@ class PanamaxAllOnButton(CoordinatorEntity[PanamaxCoordinator], ButtonEntity):
         self._attr_device_info = panamax_device_info(entry)
 
     async def async_press(self) -> None:
-        await self.coordinator.client.all_on()
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.send_command("!ALL_ON")
 
 
 class PanamaxAllOffButton(CoordinatorEntity[PanamaxCoordinator], ButtonEntity):
@@ -56,8 +55,7 @@ class PanamaxAllOffButton(CoordinatorEntity[PanamaxCoordinator], ButtonEntity):
         self._attr_device_info = panamax_device_info(entry)
 
     async def async_press(self) -> None:
-        await self.coordinator.client.all_off()
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.send_command("!ALL_OFF")
 
 
 class PanamaxCycleButton(CoordinatorEntity[PanamaxCoordinator], ButtonEntity):
@@ -77,4 +75,4 @@ class PanamaxCycleButton(CoordinatorEntity[PanamaxCoordinator], ButtonEntity):
 
     async def async_press(self) -> None:
         delay = self.coordinator.data.reboot_delays.get(self._outlet, 30)
-        await self.coordinator.client.cycle_outlet(self._outlet, delay)
+        await self.coordinator.send_command(f"#CYCLE {self._outlet}:{delay}")

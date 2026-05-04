@@ -45,9 +45,7 @@ class PanamaxOutletSwitch(CoordinatorEntity[PanamaxCoordinator], SwitchEntity):
         return self.coordinator.data.outlets.get(self._outlet)
 
     async def async_turn_on(self, **kwargs: object) -> None:
-        await self.coordinator.client.switch_outlet(self._outlet, True)
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.send_command(f"!SWITCH {self._outlet} ON")
 
     async def async_turn_off(self, **kwargs: object) -> None:
-        await self.coordinator.client.switch_outlet(self._outlet, False)
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.send_command(f"!SWITCH {self._outlet} OFF")
