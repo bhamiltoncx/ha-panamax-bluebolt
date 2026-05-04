@@ -16,6 +16,13 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+class _DeviceLog(logging.LoggerAdapter):
+    """Logger adapter that prepends [host:port] to every message."""
+
+    def process(self, msg: str, kwargs: object) -> tuple[str, object]:
+        return f"[{self.extra['device']}] {msg}", kwargs
+
+
 class PanamaxConnectionError(Exception):
     """Raised when unable to connect to or communicate with the device."""
 
@@ -113,6 +120,7 @@ class FeedbackConnection:
         self._port = port
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
+        self._log = _DeviceLog(_LOGGER, {"device": f"{host}:{port}"})
 
     @property
     def is_connected(self) -> bool:
@@ -121,41 +129,57 @@ class FeedbackConnection:
     async def connect(self) -> PanamaxState:
         """Open connection, enable feedback, read initial state dump.
 
-        Reads lines until the second $FEEDBACK=ON, which marks end of dump.
-        The first $FEEDBACK=ON is the acknowledgement of !SET_FEEDBACK ON.
+        Phase 1: wait (up to FEEDBACK_INIT_TIMEOUT) for the $FEEDBACK=ON ack.
+        Phase 2: read any following state lines with a short per-line timeout.
+                 Break immediately on timeout or on $FEEDBACK=ON after outlet data.
+
+        Some devices send no state dump after the ack (one $FEEDBACK=ON total);
+        others send a full dump ending with a second $FEEDBACK=ON. Both are handled.
         """
-        _LOGGER.debug("Connecting to %s:%d", self._host, self._port)
+        self._log.debug("Connecting")
         reader: asyncio.StreamReader | None = None
         writer: asyncio.StreamWriter | None = None
+        dump_lines: list[str] = []
         try:
             async with asyncio.timeout(FEEDBACK_INIT_TIMEOUT):
                 reader, writer = await asyncio.open_connection(self._host, self._port)
-                _LOGGER.debug("TCP connection established to %s:%d, sending !SET_FEEDBACK ON", self._host, self._port)
+                self._log.debug("TCP connection established, sending !SET_FEEDBACK ON")
                 writer.write(b"!SET_FEEDBACK ON\r\n")
                 await writer.drain()
 
-                dump_lines: list[str] = []
-                saw_outlet_data = False
-                # End-of-dump is $FEEDBACK=ON *after* outlet state lines.
-                # When connecting cold (no prior ?ID), the device first sends an
-                # identity block ($PANAMAX, model, firmware) followed by another
-                # $FEEDBACK=ON before the real state dump begins, so we can't
-                # simply count occurrences — we'd break too early on that identity
-                # block $FEEDBACK=ON.
+                # Phase 1: wait for the !SET_FEEDBACK ON acknowledgment line.
                 while True:
                     raw_line = await reader.readuntil(b"\r\n")
                     decoded = raw_line.decode(errors="replace").strip()
-                    _LOGGER.debug("Dump line: %r", decoded)
-                    if decoded.lstrip("$").upper().startswith("OUTLET"):
-                        saw_outlet_data = True
+                    self._log.debug("Dump line: %r", decoded)
                     if decoded == "$FEEDBACK=ON":
-                        if saw_outlet_data:
-                            break  # real end-of-dump marker
-                        # else: ack or identity-block occurrence, keep reading
-                    else:
-                        dump_lines.append(decoded)
+                        break  # ack received
+                    dump_lines.append(decoded)
+
+            # Phase 2: read optional state dump with a short per-line timeout.
+            # If the device sends no dump, the first wait_for times out and we
+            # proceed with an empty initial state (push updates populate it later).
+            saw_outlet_data = False
+            while True:
+                try:
+                    raw_line = await asyncio.wait_for(
+                        reader.readuntil(b"\r\n"), timeout=TELNET_READ_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    break  # no more data; use whatever dump_lines we have
+                decoded = raw_line.decode(errors="replace").strip()
+                self._log.debug("Dump line: %r", decoded)
+                if decoded.lstrip("$").upper().startswith("OUTLET"):
+                    saw_outlet_data = True
+                if decoded == "$FEEDBACK=ON":
+                    if saw_outlet_data:
+                        break  # end-of-dump marker after state data
+                    # extra $FEEDBACK=ON without state data — ignore and continue
+                else:
+                    dump_lines.append(decoded)
+
         except (OSError, TimeoutError) as exc:
-            _LOGGER.debug("Connection to %s:%d failed: %s", self._host, self._port, exc)
+            self._log.debug("Connection failed: %s", exc)
             if writer is not None:
                 try:
                     writer.close()
@@ -165,7 +189,7 @@ class FeedbackConnection:
                 f"Cannot connect to {self._host}:{self._port}: {exc}"
             ) from exc
 
-        _LOGGER.debug("Initial dump complete from %s:%d (%d lines)", self._host, self._port, len(dump_lines))
+        self._log.debug("Initial dump complete (%d lines)", len(dump_lines))
         self._reader = reader
         self._writer = writer
         return parse_feedback_dump(dump_lines)
@@ -176,14 +200,14 @@ class FeedbackConnection:
             raise PanamaxConnectionError("Not connected")
         raw_line = await self._reader.readuntil(b"\r\n")
         line = raw_line.decode(errors="replace").strip()
-        _LOGGER.debug("Push line from %s:%d: %r", self._host, self._port, line)
+        self._log.debug("Push line: %r", line)
         return line
 
     async def send_command(self, command: str) -> None:
         """Write a command to the open connection. Does not read a response."""
         if self._writer is None or self._writer.is_closing():
             raise PanamaxConnectionError("Not connected")
-        _LOGGER.debug("Sending command to %s:%d: %r", self._host, self._port, command)
+        self._log.debug("Sending command: %r", command)
         self._writer.write((command + "\r\n").encode())
         await self._writer.drain()
 
