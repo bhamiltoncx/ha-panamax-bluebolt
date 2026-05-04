@@ -135,17 +135,23 @@ class FeedbackConnection:
                 await writer.drain()
 
                 dump_lines: list[str] = []
-                feedback_count = 0
-                # $FEEDBACK=ON has no spaces (unlike all other lines); first occurrence
-                # is the ack, second marks end of the initial state dump.
+                saw_outlet_data = False
+                # End-of-dump is $FEEDBACK=ON *after* outlet state lines.
+                # When connecting cold (no prior ?ID), the device first sends an
+                # identity block ($PANAMAX, model, firmware) followed by another
+                # $FEEDBACK=ON before the real state dump begins, so we can't
+                # simply count occurrences — we'd break too early on that identity
+                # block $FEEDBACK=ON.
                 while True:
                     raw_line = await reader.readuntil(b"\r\n")
                     decoded = raw_line.decode(errors="replace").strip()
                     _LOGGER.debug("Dump line: %r", decoded)
+                    if decoded.lstrip("$").upper().startswith("OUTLET"):
+                        saw_outlet_data = True
                     if decoded == "$FEEDBACK=ON":
-                        feedback_count += 1
-                        if feedback_count >= 2:
-                            break
+                        if saw_outlet_data:
+                            break  # real end-of-dump marker
+                        # else: ack or identity-block occurrence, keep reading
                     else:
                         dump_lines.append(decoded)
         except (OSError, TimeoutError) as exc:
