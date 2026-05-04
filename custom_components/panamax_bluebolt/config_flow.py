@@ -69,11 +69,10 @@ class PanamaxConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             else:
                 model, fw = _parse_id(raw_id)
-                uid = f"{model}_{host}"
-                await self.async_set_unique_id(uid)
+                await self.async_set_unique_id(f"{host}:{port}")
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"Panamax {model}",
+                    title=f"Panamax {model} ({host})",
                     data={
                         **user_input,
                         "model": model,
@@ -83,25 +82,26 @@ class PanamaxConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_user_schema(self._discovered_host),
+            data_schema=_user_schema(),
             errors=errors,
         )
 
     async def async_step_dhcp(
         self, discovery_info: dhcp.DhcpServiceInfo
     ) -> ConfigFlowResult:
+        # Use MAC as unique ID — stable across IP changes, truly hardware-unique.
+        # Abort early before attempting connection if already configured.
+        await self.async_set_unique_id(discovery_info.macaddress)
+        self._abort_if_unique_id_configured()
+
         host = discovery_info.ip
         raw_id = await self._try_connect(host, DEFAULT_PORT)
         if raw_id is None:
             return self.async_abort(reason="cannot_connect")
 
         model, fw = _parse_id(raw_id)
-        uid = f"{model}_{host}"
-        await self.async_set_unique_id(uid)
-        self._abort_if_unique_id_configured()
-
         return self.async_create_entry(
-            title=f"Panamax {model}",
+            title=f"Panamax {model} ({host})",
             data={
                 CONF_HOST: host,
                 CONF_PORT: DEFAULT_PORT,
