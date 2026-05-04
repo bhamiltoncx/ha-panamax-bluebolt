@@ -120,3 +120,115 @@ class TestParseRebootDelays:
         config = _const.parse_list_config(LIST_CONFIG_RAW)
         result = _const.parse_reboot_delays(config)
         assert all(isinstance(v, int) for v in result.values())
+
+
+FEEDBACK_DUMP_LINES = [
+    "$TRIGIN = ON",
+    "$GREEN MODE = OFF",
+    "$OUTLET1 = ON",
+    "$OUTLET2 = ON",
+    "$OUTLET3 = OFF",
+    "$OUTLET4 = ON",
+    "$OUTLET5 = ON",
+    "$OUTLET6 = ON",
+    "$OUTLET7 = ON",
+    "$OUTLET8 = ON",
+    "$VOLTAGE = 120",
+    "$CURRENT = 18",
+    "$PWR = OK",
+    "$BREAKER = OK",
+    "$WIRE FAULT = OK",
+    "$TEMPERATURE = OK",
+    "$AVM = OK",
+    "$TRIGGER FOR OUTLET1 = BUTTON_1",
+    "$TRIGGER FOR OUTLET1 = BUTTON_GREEN",
+    "$DELAY FOR OUTLET1 = 1, 15",
+    "$DELAY FOR OUTLET2 = 2, 14",
+    "$DELAY FOR OUTLET3 = 3, 13",
+    "$DELAY FOR OUTLET4 = 4, 12",
+    "$DELAY FOR OUTLET5 = 5, 11",
+    "$DELAY FOR OUTLET6 = 6, 10",
+    "$DELAY FOR OUTLET7 = 7, 6",
+    "$DELAY FOR OUTLET8 = 12, 1",
+]
+
+
+class TestParseFeedbackDump:
+    def test_outlets_parsed(self) -> None:
+        state = _const.parse_feedback_dump(FEEDBACK_DUMP_LINES)  # type: ignore[attr-defined]
+        assert state.outlets == {1: True, 2: True, 3: False, 4: True, 5: True, 6: True, 7: True, 8: True}
+
+    def test_power_sensors(self) -> None:
+        state = _const.parse_feedback_dump(FEEDBACK_DUMP_LINES)  # type: ignore[attr-defined]
+        assert state.voltage == 120
+        assert state.current == 18
+
+    def test_fault_status(self) -> None:
+        state = _const.parse_feedback_dump(FEEDBACK_DUMP_LINES)  # type: ignore[attr-defined]
+        assert state.power_ok is True
+        assert state.breaker_ok is True
+        assert state.wire_fault_ok is True
+        assert state.temperature_ok is True
+        assert state.avm_ok is True
+
+    def test_reboot_delays(self) -> None:
+        state = _const.parse_feedback_dump(FEEDBACK_DUMP_LINES)  # type: ignore[attr-defined]
+        assert state.reboot_delays[1] == 15
+        assert state.reboot_delays[8] == 1
+
+    def test_ignores_unknown_lines(self) -> None:
+        lines = FEEDBACK_DUMP_LINES + ["$FEEDBACK=ON", "$LINEFEED=ON", "$PROFILE = CUSTOM"]
+        state = _const.parse_feedback_dump(lines)  # type: ignore[attr-defined]
+        assert state.voltage == 120
+
+
+class TestApplyFeedbackLine:
+    def _base_state(self) -> object:
+        return _const.parse_feedback_dump(FEEDBACK_DUMP_LINES)  # type: ignore[attr-defined]
+
+    def test_outlet_on(self) -> None:
+        state = self._base_state()
+        new_state = _const.apply_feedback_line(state, "$OUTLET3 = ON")  # type: ignore[attr-defined]
+        assert new_state is not None
+        assert new_state.outlets[3] is True
+
+    def test_outlet_off(self) -> None:
+        state = self._base_state()
+        new_state = _const.apply_feedback_line(state, "$OUTLET1 = OFF")  # type: ignore[attr-defined]
+        assert new_state is not None
+        assert new_state.outlets[1] is False
+
+    def test_voltage_update(self) -> None:
+        state = self._base_state()
+        new_state = _const.apply_feedback_line(state, "$VOLTAGE = 119")  # type: ignore[attr-defined]
+        assert new_state is not None
+        assert new_state.voltage == 119
+
+    def test_current_update(self) -> None:
+        state = self._base_state()
+        new_state = _const.apply_feedback_line(state, "$CURRENT = 20")  # type: ignore[attr-defined]
+        assert new_state is not None
+        assert new_state.current == 20
+
+    def test_power_fault(self) -> None:
+        state = self._base_state()
+        new_state = _const.apply_feedback_line(state, "$PWR = FAULT")  # type: ignore[attr-defined]
+        assert new_state is not None
+        assert new_state.power_ok is False
+
+    def test_wire_fault(self) -> None:
+        state = self._base_state()
+        new_state = _const.apply_feedback_line(state, "$WIRE FAULT = FAULT")  # type: ignore[attr-defined]
+        assert new_state is not None
+        assert new_state.wire_fault_ok is False
+
+    def test_unknown_line_returns_none(self) -> None:
+        state = self._base_state()
+        assert _const.apply_feedback_line(state, "$FEEDBACK=ON") is None  # type: ignore[attr-defined]
+        assert _const.apply_feedback_line(state, "$TRIGIN = ON") is None  # type: ignore[attr-defined]
+        assert _const.apply_feedback_line(state, "$GREEN MODE = OFF") is None  # type: ignore[attr-defined]
+
+    def test_original_state_unchanged(self) -> None:
+        state = self._base_state()
+        _const.apply_feedback_line(state, "$OUTLET1 = OFF")  # type: ignore[attr-defined]
+        assert state.outlets[1] is True  # type: ignore[union-attr]

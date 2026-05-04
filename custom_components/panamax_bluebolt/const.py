@@ -1,6 +1,6 @@
 """Constants and parse helpers for the Panamax BlueBOLT integration."""
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as _dc_replace
 from typing import Final
 
 DOMAIN: Final = "panamax_bluebolt"
@@ -15,6 +15,7 @@ MIN_SCAN_INTERVAL: Final = 10
 MAX_SCAN_INTERVAL: Final = 3600
 
 TELNET_READ_TIMEOUT: Final = 2.0
+FEEDBACK_INIT_TIMEOUT: Final = 60.0
 NUM_OUTLETS: Final = 8
 
 
@@ -92,6 +93,8 @@ def parse_list_config(raw: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for line in raw.splitlines():
         line = line.strip().lstrip("$")
+        if "=" not in line:
+            continue
         left, right = line.split("=", 1)
         result[left] = right
     return result
@@ -112,3 +115,70 @@ def parse_reboot_delays(config: dict[str, str]) -> dict[int, int]:
         except (ValueError, IndexError):
             continue
     return result
+
+
+def parse_feedback_dump(lines: list[str]) -> PanamaxState:
+    """Build a PanamaxState from the initial dump lines received after !SET_FEEDBACK ON."""
+    raw = "\r\n".join(lines)
+    config: dict[str, str] = {}
+    for line in lines:
+        line = line.strip().lstrip("$")
+        if "=" not in line:
+            continue
+        left, right = line.split("=", 1)
+        config[left] = right
+    return PanamaxState(
+        outlets=parse_outlet_status(raw),
+        voltage=parse_int_value(raw, "VOLTAGE"),
+        current=parse_int_value(raw, "CURRENT"),
+        reboot_delays=parse_reboot_delays(config),
+        **parse_fault_status(raw),
+    )
+
+
+_OUTLET_PREFIX = "OUTLET"
+_FAULT_KEY_MAP: dict[str, str] = {
+    "PWR": "power_ok",
+    "BREAKER": "breaker_ok",
+    "WIRE FAULT": "wire_fault_ok",
+    "TEMPERATURE": "temperature_ok",
+    "AVM": "avm_ok",
+}
+
+
+def apply_feedback_line(state: PanamaxState, line: str) -> PanamaxState | None:
+    """Apply one push notification line to state. Returns new state or None if line is unknown."""
+    line = line.strip().lstrip("$")
+    if "=" not in line:
+        return None
+    key, value = line.split("=", 1)
+    key = key.strip()
+    value = value.strip()
+    key_upper = key.upper()
+
+    if key_upper.startswith(_OUTLET_PREFIX):
+        try:
+            n = int(key_upper[len(_OUTLET_PREFIX):])
+            new_outlets = dict(state.outlets)
+            new_outlets[n] = value.upper() == "ON"
+            return _dc_replace(state, outlets=new_outlets)
+        except ValueError:
+            return None
+
+    if key_upper == "VOLTAGE":
+        try:
+            return _dc_replace(state, voltage=int(value))
+        except ValueError:
+            return None
+
+    if key_upper == "CURRENT":
+        try:
+            return _dc_replace(state, current=int(value))
+        except ValueError:
+            return None
+
+    for proto_key, field in _FAULT_KEY_MAP.items():
+        if key_upper == proto_key:
+            return _dc_replace(state, **{field: value.upper() == "OK"})
+
+    return None
