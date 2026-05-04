@@ -90,8 +90,9 @@ def feedback_conn() -> object:
     return FeedbackConnection(HOST, PORT)
 
 
-async def test_feedback_connect_returns_state(feedback_conn: object) -> None:
-    async with feedback_conn as state:  # type: ignore[attr-defined]
+async def test_feedback_get_initial_state_returns_state(feedback_conn: object) -> None:
+    async with feedback_conn:
+        state = await feedback_conn.get_initial_state()
         assert isinstance(state, PanamaxState)
         assert len(state.outlets) == 8
         assert all(isinstance(v, bool) for v in state.outlets.values())

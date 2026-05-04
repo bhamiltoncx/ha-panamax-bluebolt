@@ -126,58 +126,14 @@ class FeedbackConnection:
     def is_connected(self) -> bool:
         return self._writer is not None and not self._writer.is_closing()
 
-    async def connect(self) -> PanamaxState:
-        """Open connection, enable feedback, read initial state dump.
-
-        Phase 1: wait (up to FEEDBACK_INIT_TIMEOUT) for the $FEEDBACK=ON ack.
-        Phase 2: read any following state lines with a short per-line timeout.
-                 Break immediately on timeout or on $FEEDBACK=ON after outlet data.
-
-        Some devices send no state dump after the ack (one $FEEDBACK=ON total);
-        others send a full dump ending with a second $FEEDBACK=ON. Both are handled.
-        """
+    async def connect(self) -> None:
+        """Open TCP connection to the device"""
         self._log.debug("Connecting")
         reader: asyncio.StreamReader | None = None
         writer: asyncio.StreamWriter | None = None
-        dump_lines: list[str] = []
         try:
             async with asyncio.timeout(FEEDBACK_INIT_TIMEOUT):
                 reader, writer = await asyncio.open_connection(self._host, self._port)
-                self._log.debug("TCP connection established, sending !SET_FEEDBACK ON")
-                writer.write(b"!SET_FEEDBACK ON\r\n")
-                await writer.drain()
-
-                # Phase 1: wait for the !SET_FEEDBACK ON acknowledgment line.
-                while True:
-                    raw_line = await reader.readuntil(b"\r\n")
-                    decoded = raw_line.decode(errors="replace").strip()
-                    self._log.debug("Dump line: %r", decoded)
-                    if decoded == "$FEEDBACK=ON":
-                        break  # ack received
-                    dump_lines.append(decoded)
-
-            # Phase 2: read optional state dump with a short per-line timeout.
-            # If the device sends no dump, the first wait_for times out and we
-            # proceed with an empty initial state (push updates populate it later).
-            saw_outlet_data = False
-            while True:
-                try:
-                    raw_line = await asyncio.wait_for(
-                        reader.readuntil(b"\r\n"), timeout=TELNET_READ_TIMEOUT
-                    )
-                except asyncio.TimeoutError:
-                    break  # no more data; use whatever dump_lines we have
-                decoded = raw_line.decode(errors="replace").strip()
-                self._log.debug("Dump line: %r", decoded)
-                if decoded.lstrip("$").upper().startswith("OUTLET"):
-                    saw_outlet_data = True
-                if decoded == "$FEEDBACK=ON":
-                    if saw_outlet_data:
-                        break  # end-of-dump marker after state data
-                    # extra $FEEDBACK=ON without state data — ignore and continue
-                else:
-                    dump_lines.append(decoded)
-
         except (OSError, TimeoutError) as exc:
             self._log.debug("Connection failed: %s", exc)
             if writer is not None:
@@ -189,10 +145,25 @@ class FeedbackConnection:
                 f"Cannot connect to {self._host}:{self._port}: {exc}"
             ) from exc
 
-        self._log.debug("Initial dump complete (%d lines)", len(dump_lines))
+        self._log.debug("Connected")
         self._reader = reader
         self._writer = writer
-        return parse_feedback_dump(dump_lines)
+
+    async def get_initial_state(self) -> PanamaxState:
+        """Read the initial state from the connection."""
+        lines = []
+        await self.send_command('?OUTLETSTAT')
+        for i in range(8):
+            lines.append(await self.read_line())
+        await self.send_command('?VOLTAGE')
+        lines.append(await self.read_line())
+        await self.send_command('?CURRENT')
+        lines.append(await self.read_line())
+        await self.send_command('?FAULTSTAT')
+        for i in range(5):
+            lines.append(await self.read_line())
+        self._log.debug(f"Initial state lines: {lines}")
+        return parse_feedback_dump(lines)
 
     async def read_line(self) -> str:
         """Read one push notification line from the open stream."""
@@ -200,7 +171,7 @@ class FeedbackConnection:
             raise PanamaxConnectionError("Not connected")
         raw_line = await self._reader.readuntil(b"\r\n")
         line = raw_line.decode(errors="replace").strip()
-        self._log.debug("Push line: %r", line)
+        self._log.debug("Read line: %r", line)
         return line
 
     async def send_command(self, command: str) -> None:

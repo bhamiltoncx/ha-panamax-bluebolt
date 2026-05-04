@@ -114,7 +114,7 @@ def parse_reboot_delays(config: dict[str, str]) -> dict[int, int]:
 
 
 def parse_feedback_dump(lines: list[str]) -> PanamaxState:
-    """Build a PanamaxState from the initial dump lines received after !SET_FEEDBACK ON."""
+    """Build a PanamaxState from the initial dump lines received before !SET_FEEDBACK ON."""
     raw = "\r\n".join(lines)
     config: dict[str, str] = {}
     for line in lines:
