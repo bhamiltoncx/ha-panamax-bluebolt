@@ -47,7 +47,6 @@ class PanamaxConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle setup of a Panamax PDU."""
 
     VERSION = 1
-    _discovered_host: str = ""
 
     async def _try_connect(self, host: str, port: int) -> str | None:
         """Return raw ?ID string on success, None if connection fails."""
@@ -96,14 +95,17 @@ class PanamaxConfigFlow(ConfigFlow, domain=DOMAIN):
         if raw_id is None:
             return self.async_abort(reason="cannot_connect")
 
-        model, _ = _parse_id(raw_id)
+        model, fw = _parse_id(raw_id)
         uid = f"{model}_{host}"
         await self.async_set_unique_id(uid)
         self._abort_if_unique_id_configured()
 
-        self._discovered_host = host
-        self.context["title_placeholders"] = {
-            "host": host,
-            "model": f"Panamax {model}",
-        }
-        return await self.async_step_user()
+        return self.async_create_entry(
+            title=f"Panamax {model}",
+            data={
+                CONF_HOST: host,
+                CONF_PORT: DEFAULT_PORT,
+                "model": model,
+                "sw_version": fw,
+            },
+        )
