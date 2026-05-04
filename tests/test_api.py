@@ -22,7 +22,7 @@ def _load(name: str, path: Path) -> object:
     return mod
 
 
-_load("custom_components.panamax_bluebolt.const", _ROOT / "const.py")
+_const_mod = _load("custom_components.panamax_bluebolt.const", _ROOT / "const.py")
 _api = _load("custom_components.panamax_bluebolt.api", _ROOT / "api.py")
 
 HOST = os.environ.get("BLUEBOLT_HOST", "")
@@ -34,6 +34,8 @@ pytestmark = pytest.mark.skipif(
 )
 
 PanamaxClient = _api.PanamaxClient  # type: ignore[attr-defined]
+FeedbackConnection = _api.FeedbackConnection  # type: ignore[attr-defined]
+PanamaxState = _const_mod.PanamaxState  # type: ignore[attr-defined]
 
 
 @pytest.fixture()
@@ -81,3 +83,26 @@ async def test_get_config(client: object) -> None:
     assert isinstance(result, dict)
     assert all(isinstance(v, str) for v in result.keys())
     assert all(isinstance(v, str) for v in result.values())
+
+
+@pytest.fixture()
+def feedback_conn() -> object:
+    return FeedbackConnection(HOST, PORT)
+
+
+async def test_feedback_connect_returns_state(feedback_conn: object) -> None:
+    async with feedback_conn as state:  # type: ignore[attr-defined]
+        assert isinstance(state, PanamaxState)
+        assert len(state.outlets) == 8
+        assert all(isinstance(v, bool) for v in state.outlets.values())
+        assert state.voltage > 0
+        assert state.current >= 0
+        assert len(state.reboot_delays) == 8
+
+
+async def test_feedback_is_connected(feedback_conn: object) -> None:
+    conn = feedback_conn
+    assert not conn.is_connected  # type: ignore[union-attr]
+    async with conn:  # type: ignore[attr-defined]
+        assert conn.is_connected  # type: ignore[union-attr]
+    assert not conn.is_connected  # type: ignore[union-attr]

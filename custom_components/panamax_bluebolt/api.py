@@ -3,8 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from .const import (
+    FEEDBACK_INIT_TIMEOUT,
     TELNET_READ_TIMEOUT,
+    PanamaxState,
+    apply_feedback_line,
     parse_fault_status,
+    parse_feedback_dump,
     parse_int_value,
     parse_list_config,
     parse_outlet_status,
@@ -100,3 +104,84 @@ class PanamaxClient:
     async def cycle_outlet(self, outlet: int, delay: int) -> None:
         """Power-cycle one outlet with the given off-duration in seconds."""
         await _send_command(self._host, self._port, f"#CYCLE {outlet}:{delay}")
+
+
+class FeedbackConnection:
+    """Persistent TCP connection using !SET_FEEDBACK ON for push state updates."""
+
+    def __init__(self, host: str, port: int) -> None:
+        self._host = host
+        self._port = port
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
+
+    @property
+    def is_connected(self) -> bool:
+        return self._writer is not None and not self._writer.is_closing()
+
+    async def connect(self) -> PanamaxState:
+        """Open connection, enable feedback, read initial state dump.
+
+        Reads lines until the second $FEEDBACK=ON, which marks end of dump.
+        The first $FEEDBACK=ON is the acknowledgement of !SET_FEEDBACK ON.
+        """
+        try:
+            async with asyncio.timeout(FEEDBACK_INIT_TIMEOUT):
+                reader, writer = await asyncio.open_connection(self._host, self._port)
+                self._reader = reader
+                self._writer = writer
+
+                writer.write(b"!SET_FEEDBACK ON\r\n")
+                await writer.drain()
+
+                dump_lines: list[str] = []
+                feedback_count = 0
+                while True:
+                    raw_line = await reader.readuntil(b"\r\n")
+                    decoded = raw_line.decode(errors="replace").strip()
+                    if decoded == "$FEEDBACK=ON":
+                        feedback_count += 1
+                        if feedback_count >= 2:
+                            break
+                    else:
+                        dump_lines.append(decoded)
+        except (OSError, TimeoutError) as exc:
+            self._reader = None
+            self._writer = None
+            raise PanamaxConnectionError(
+                f"Cannot connect to {self._host}:{self._port}: {exc}"
+            ) from exc
+
+        return parse_feedback_dump(dump_lines)
+
+    async def read_line(self) -> str:
+        """Read one push notification line from the open stream."""
+        if self._reader is None:
+            raise PanamaxConnectionError("Not connected")
+        raw_line = await self._reader.readuntil(b"\r\n")
+        return raw_line.decode(errors="replace").strip()
+
+    async def send_command(self, command: str) -> None:
+        """Write a command to the open connection. Does not read a response."""
+        if self._writer is None or self._writer.is_closing():
+            raise PanamaxConnectionError("Not connected")
+        self._writer.write((command + "\r\n").encode())
+        await self._writer.drain()
+
+    async def __aenter__(self) -> PanamaxState:
+        return await self.connect()
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.close()
+
+    async def close(self) -> None:
+        """Close the connection cleanly."""
+        if self._writer is not None:
+            try:
+                self._writer.close()
+                await self._writer.wait_closed()
+            except OSError:
+                pass
+            finally:
+                self._writer = None
+                self._reader = None
