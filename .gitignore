@@ -11,3 +11,4 @@ dist/
 .ruff_cache/
 deps/
 node_modules/
+.worktrees/
