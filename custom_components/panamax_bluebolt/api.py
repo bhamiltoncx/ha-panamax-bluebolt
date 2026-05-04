@@ -6,7 +6,6 @@ from .const import (
     FEEDBACK_INIT_TIMEOUT,
     TELNET_READ_TIMEOUT,
     PanamaxState,
-    apply_feedback_line,
     parse_fault_status,
     parse_feedback_dump,
     parse_int_value,
@@ -125,17 +124,18 @@ class FeedbackConnection:
         Reads lines until the second $FEEDBACK=ON, which marks end of dump.
         The first $FEEDBACK=ON is the acknowledgement of !SET_FEEDBACK ON.
         """
+        reader: asyncio.StreamReader | None = None
+        writer: asyncio.StreamWriter | None = None
         try:
             async with asyncio.timeout(FEEDBACK_INIT_TIMEOUT):
                 reader, writer = await asyncio.open_connection(self._host, self._port)
-                self._reader = reader
-                self._writer = writer
-
                 writer.write(b"!SET_FEEDBACK ON\r\n")
                 await writer.drain()
 
                 dump_lines: list[str] = []
                 feedback_count = 0
+                # $FEEDBACK=ON has no spaces (unlike all other lines); first occurrence
+                # is the ack, second marks end of the initial state dump.
                 while True:
                     raw_line = await reader.readuntil(b"\r\n")
                     decoded = raw_line.decode(errors="replace").strip()
@@ -146,12 +146,17 @@ class FeedbackConnection:
                     else:
                         dump_lines.append(decoded)
         except (OSError, TimeoutError) as exc:
-            self._reader = None
-            self._writer = None
+            if writer is not None:
+                try:
+                    writer.close()
+                except OSError:
+                    pass
             raise PanamaxConnectionError(
                 f"Cannot connect to {self._host}:{self._port}: {exc}"
             ) from exc
 
+        self._reader = reader
+        self._writer = writer
         return parse_feedback_dump(dump_lines)
 
     async def read_line(self) -> str:

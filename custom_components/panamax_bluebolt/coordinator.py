@@ -62,7 +62,7 @@ class PanamaxCoordinator(DataUpdateCoordinator[PanamaxState]):
                 new_state = apply_feedback_line(self.data, line)
                 if new_state is not None:
                     self.async_set_updated_data(new_state)
-            except (OSError, asyncio.IncompleteReadError) as exc:
+            except (OSError, asyncio.IncompleteReadError, PanamaxConnectionError) as exc:
                 _LOGGER.warning(
                     "Panamax feedback connection lost (%s). Reconnecting in %ds", exc, backoff
                 )

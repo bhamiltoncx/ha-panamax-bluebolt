@@ -106,3 +106,11 @@ async def test_feedback_is_connected(feedback_conn: object) -> None:
     async with conn:  # type: ignore[attr-defined]
         assert conn.is_connected  # type: ignore[union-attr]
     assert not conn.is_connected  # type: ignore[union-attr]
+
+
+async def test_feedback_send_command_and_read_line(feedback_conn: object) -> None:
+    conn = feedback_conn
+    async with conn:  # type: ignore[attr-defined]
+        await conn.send_command("?VOLTAGE")  # type: ignore[union-attr]
+        line = await conn.read_line()  # type: ignore[union-attr]
+        assert "VOLTAGE" in line.upper()
