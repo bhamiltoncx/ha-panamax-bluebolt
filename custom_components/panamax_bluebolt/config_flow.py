@@ -100,8 +100,11 @@ class PanamaxConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="cannot_connect")
 
         model, fw = _parse_id(raw_id)
+        # Create a unique suffix to distinguish multiple instances by stripping the known MAC
+        # address prefix.
+        mac_suffix = discovery_info.macaddress[6:]
         return self.async_create_entry(
-            title=f"Panamax {model} ({host})",
+            title=f"Panamax {model} ({mac_suffix})",
             data={
                 CONF_HOST: host,
                 CONF_PORT: DEFAULT_PORT,
