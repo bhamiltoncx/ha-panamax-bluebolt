@@ -124,11 +124,13 @@ class FeedbackConnection:
         Reads lines until the second $FEEDBACK=ON, which marks end of dump.
         The first $FEEDBACK=ON is the acknowledgement of !SET_FEEDBACK ON.
         """
+        _LOGGER.debug("Connecting to %s:%d", self._host, self._port)
         reader: asyncio.StreamReader | None = None
         writer: asyncio.StreamWriter | None = None
         try:
             async with asyncio.timeout(FEEDBACK_INIT_TIMEOUT):
                 reader, writer = await asyncio.open_connection(self._host, self._port)
+                _LOGGER.debug("TCP connection established to %s:%d, sending !SET_FEEDBACK ON", self._host, self._port)
                 writer.write(b"!SET_FEEDBACK ON\r\n")
                 await writer.drain()
 
@@ -139,6 +141,7 @@ class FeedbackConnection:
                 while True:
                     raw_line = await reader.readuntil(b"\r\n")
                     decoded = raw_line.decode(errors="replace").strip()
+                    _LOGGER.debug("Dump line: %r", decoded)
                     if decoded == "$FEEDBACK=ON":
                         feedback_count += 1
                         if feedback_count >= 2:
@@ -146,6 +149,7 @@ class FeedbackConnection:
                     else:
                         dump_lines.append(decoded)
         except (OSError, TimeoutError) as exc:
+            _LOGGER.debug("Connection to %s:%d failed: %s", self._host, self._port, exc)
             if writer is not None:
                 try:
                     writer.close()
@@ -155,6 +159,7 @@ class FeedbackConnection:
                 f"Cannot connect to {self._host}:{self._port}: {exc}"
             ) from exc
 
+        _LOGGER.debug("Initial dump complete from %s:%d (%d lines)", self._host, self._port, len(dump_lines))
         self._reader = reader
         self._writer = writer
         return parse_feedback_dump(dump_lines)
@@ -164,12 +169,15 @@ class FeedbackConnection:
         if self._reader is None:
             raise PanamaxConnectionError("Not connected")
         raw_line = await self._reader.readuntil(b"\r\n")
-        return raw_line.decode(errors="replace").strip()
+        line = raw_line.decode(errors="replace").strip()
+        _LOGGER.debug("Push line from %s:%d: %r", self._host, self._port, line)
+        return line
 
     async def send_command(self, command: str) -> None:
         """Write a command to the open connection. Does not read a response."""
         if self._writer is None or self._writer.is_closing():
             raise PanamaxConnectionError("Not connected")
+        _LOGGER.debug("Sending command to %s:%d: %r", self._host, self._port, command)
         self._writer.write((command + "\r\n").encode())
         await self._writer.drain()
 
