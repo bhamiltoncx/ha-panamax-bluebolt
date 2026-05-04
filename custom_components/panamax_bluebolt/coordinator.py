@@ -41,7 +41,14 @@ class PanamaxCoordinator(DataUpdateCoordinator[PanamaxState]):
         self._listener_task: asyncio.Task[None] | None = None
 
     async def _async_update_data(self) -> PanamaxState:
-        """Called once by async_config_entry_first_refresh to establish the connection."""
+        """Called once by async_config_entry_first_refresh to establish the connection.
+
+        HA may retry this after UpdateFailed; guard against spawning a second
+        listener task on top of a still-running one.
+        """
+        if self._listener_task is not None and not self._listener_task.done():
+            assert self.data is not None
+            return self.data
         try:
             state = await self._conn.connect()
         except PanamaxConnectionError as exc:

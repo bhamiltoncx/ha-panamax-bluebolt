@@ -10,12 +10,8 @@ from .api import PanamaxClient, PanamaxConnectionError
 from .const import (
     CONF_HOST,
     CONF_PORT,
-    CONF_SCAN_INTERVAL,
     DEFAULT_PORT,
-    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
-    MAX_SCAN_INTERVAL,
-    MIN_SCAN_INTERVAL,
 )
 
 
@@ -26,9 +22,6 @@ def _user_schema(default_host: str = "") -> vol.Schema:
             vol.Optional(CONF_PORT, default=DEFAULT_PORT): vol.All(
                 int, vol.Range(min=1, max=65535)
             ),
-            vol.Optional(
-                CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
-            ): vol.All(int, vol.Range(min=MIN_SCAN_INTERVAL, max=MAX_SCAN_INTERVAL)),
         }
     )
 

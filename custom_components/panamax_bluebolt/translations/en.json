@@ -6,8 +6,7 @@
         "description": "Enter the IP address or hostname of your Panamax BlueBOLT PDU.",
         "data": {
           "host": "Host",
-          "port": "Port",
-          "scan_interval": "Polling interval (seconds)"
+          "port": "Port"
         }
       }
     },

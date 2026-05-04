@@ -7,12 +7,8 @@ DOMAIN: Final = "panamax_bluebolt"
 
 CONF_HOST: Final = "host"
 CONF_PORT: Final = "port"
-CONF_SCAN_INTERVAL: Final = "scan_interval"
 
 DEFAULT_PORT: Final = 23
-DEFAULT_SCAN_INTERVAL: Final = 60
-MIN_SCAN_INTERVAL: Final = 10
-MAX_SCAN_INTERVAL: Final = 3600
 
 TELNET_READ_TIMEOUT: Final = 2.0
 FEEDBACK_INIT_TIMEOUT: Final = 60.0
