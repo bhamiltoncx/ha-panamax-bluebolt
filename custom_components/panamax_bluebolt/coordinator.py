@@ -69,10 +69,12 @@ class PanamaxCoordinator(DataUpdateCoordinator[PanamaxState]):
 
     def configure_tasks(self, entry: ConfigEntry) -> None:
         entry.async_create_background_task(
+            self.hass,
             self._run_listener(),
             name=f"{DOMAIN}_listener",
         )
         entry.async_create_background_task(
+            self.hass,
             self._run_power_poller(),
             name=f"{DOMAIN}_power_poller",
         )
