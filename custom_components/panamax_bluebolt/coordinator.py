@@ -22,6 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _RECONNECT_INITIAL = 5
 _RECONNECT_MAX = 300
+_POWER_POLL_INTERVAL = 60
 
 
 class _DeviceLog(logging.LoggerAdapter):
@@ -71,7 +72,10 @@ class PanamaxCoordinator(DataUpdateCoordinator[PanamaxState]):
             self._run_listener(),
             name=f"{DOMAIN}_listener",
         )
-        # TODO: Fetch power info occasionally
+        entry.async_create_background_task(
+            self._run_power_poller(),
+            name=f"{DOMAIN}_power_poller",
+        )
 
     async def _run_listener(self) -> None:
         """Background task: read push lines forever, reconnect on disconnect."""
@@ -99,6 +103,22 @@ class PanamaxCoordinator(DataUpdateCoordinator[PanamaxState]):
                     self._log.info("Panamax feedback connection re-established")
                 except (OSError, PanamaxConnectionError, TimeoutError) as reconnect_exc:
                     self._log.error("Panamax reconnect failed: %s", reconnect_exc)
+            except asyncio.CancelledError:
+                return
+
+    async def _run_power_poller(self) -> None:
+        """Background task: periodically poll voltage and current.
+
+        The device doesn't push these automatically; responses arrive as normal
+        feedback lines and are handled by _run_listener via apply_feedback_line.
+        """
+        while True:
+            try:
+                await asyncio.sleep(_POWER_POLL_INTERVAL)
+                await self._conn.send_command('?VOLTAGE')
+                await self._conn.send_command('?CURRENT')
+            except PanamaxConnectionError:
+                pass  # _run_listener handles reconnect; poll again next interval
             except asyncio.CancelledError:
                 return
 
