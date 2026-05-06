@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _RECONNECT_INITIAL = 5
 _RECONNECT_MAX = 300
-_POWER_POLL_INTERVAL = 60
+_POWER_POLL_INTERVAL = 3600
 
 
 class _DeviceLog(logging.LoggerAdapter):
